@@ -1,0 +1,30 @@
+{
+  "bind_host": "0.0.0.0",
+  "bind_port": 8098,
+  "targets": {
+    "desktop": {
+      "mac": "aa:bb:cc:dd:ee:01",
+      "broadcast_address": "10.30.10.255",
+      "source_address": "10.30.10.5"
+    },
+    "nas": {
+      "mac": "aa:bb:cc:dd:ee:02",
+      "broadcast_address": "10.30.20.255",
+      "source_address": "10.30.20.5"
+    }
+  },
+  "requesters": {
+    "home-assistant": {
+      "token_file": "/run/secrets/ha_token",
+      "targets": "*"
+    },
+    "phone-shortcut": {
+      "token_env": "WOL_TOKEN_PHONE",
+      "targets": ["desktop"]
+    },
+    "test-laptop": {
+      "token": "replace-with-a-long-random-token",
+      "targets": ["desktop", "nas"]
+    }
+  }
+}
