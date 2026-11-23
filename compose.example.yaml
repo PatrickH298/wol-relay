@@ -1,7 +1,8 @@
 # Copy to compose.yaml, and copy .env.example to .env, then adjust both.
 services:
   wol-relay:
-    image: ghcr.io/patrickh298/wol-relay:latest
+    # Major version tag: gets fixes and new features, never breaking changes.
+    image: ghcr.io/patrickh298/wol-relay:1
     # To build from this checkout instead, replace `image:` with:
     # build: .
     container_name: wol-relay
