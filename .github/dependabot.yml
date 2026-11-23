@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Workflow actions are pinned to commit SHAs; this keeps the pins current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Base image version (python:3.13-alpine). The weekly image rebuild
+  # already picks up patches within a tag; this proposes newer tags.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
