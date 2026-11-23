@@ -6,12 +6,12 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    # Weekly rebuild to pick up base image (python:3.13-alpine) security
+    # Weekly rebuild of the current release to pick up base image security
     # updates. Mondays 07:23 UTC.
     - cron: "23 7 * * 1"
   workflow_dispatch:
 
-# Nothing by default; the job below asks for exactly what it needs.
+# Nothing by default; each job asks for exactly what it needs.
 permissions: {}
 
 concurrency:
@@ -33,12 +33,31 @@ jobs:
     permissions:
       contents: read
       packages: write # GHCR push; fork PRs get a read-only token regardless
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      create_tag: ${{ steps.version.outputs.create_tag }}
 
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0 # full history and tags, for the version checks
+
+      # The version is __version__ in wol_relay.py. On PRs this fails if the
+      # image changed without a bump; on main it refuses to overwrite an
+      # already-released version with different code.
+      - name: Check version
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            python3 .github/ci/version.py check-pr "$BASE_SHA"
+          else
+            python3 .github/ci/version.py check-release
+          fi
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -56,21 +75,27 @@ jobs:
           tags: wol-relay:ci
 
       - name: Smoke test
-        run: .github/ci/smoke-test.sh wol-relay:ci
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: .github/ci/smoke-test.sh wol-relay:ci "$VERSION"
 
-      # Prerelease: only "latest" is published. When switching to
-      # MAJOR.MINOR.PATCH releases, add type=semver rules here and a
-      # tag trigger above.
+      # 1.2.3 -> 1.2.3, 1.2, 1, latest
       - name: Image metadata
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.IMAGE }}
+          flavor: |
+            latest=false
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}},value=v${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=v${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}},value=v${{ steps.version.outputs.version }}
+            type=raw,value=latest
           labels: |
             org.opencontainers.image.title=wol-relay
             org.opencontainers.image.description=Wake-on-LAN relay: sends broadcast magic packets on request
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
 
       - name: Log in to GHCR
         if: env.PUBLISH == 'true'
@@ -91,3 +116,27 @@ jobs:
           push: ${{ env.PUBLISH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  # Tag the commit and create a GitHub release the first time a version is
+  # published. Weekly rebuilds of an existing version skip this.
+  release:
+    needs: build
+    if: >-
+      needs.build.outputs.create_tag == 'true' &&
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # create the tag and release
+    steps:
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          gh release create "v$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "v$VERSION" \
+            --generate-notes

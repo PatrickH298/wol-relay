@@ -33,6 +33,10 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
+# MAJOR.MINOR.PATCH. Bump in any change to the image (this script, the
+# Dockerfile, .dockerignore); CI enforces it and publishes matching tags.
+__version__ = "1.0.0"
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
@@ -255,7 +259,7 @@ def make_handler(config: dict):
     ]
 
     class Handler(BaseHTTPRequestHandler):
-        server_version = "wol-relay/1.1"
+        server_version = f"wol-relay/{__version__}"
         timeout = REQUEST_TIMEOUT_SECONDS
 
         def log_message(self, fmt, *args):  # noqa: A002 - stdlib signature
@@ -299,7 +303,7 @@ def make_handler(config: dict):
         def do_GET(self):  # noqa: N802 - stdlib signature
             path = urlparse(self.path).path
             if path == "/health":
-                self._send(HTTPStatus.OK, {"status": "ok"})
+                self._send(HTTPStatus.OK, {"status": "ok", "version": __version__})
                 return
             self._send(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
@@ -395,6 +399,9 @@ def main() -> None:
         help="GET /health on the configured bind address and exit 0 if OK "
         "(for container HEALTHCHECK); doesn't resolve tokens",
     )
+    parser.add_argument(
+        "--version", action="version", version=f"wol-relay {__version__}"
+    )
     args = parser.parse_args()
 
     if args.healthcheck:
@@ -408,7 +415,8 @@ def main() -> None:
     handler = make_handler(config)
     server = ThreadingHTTPServer((config["bind_host"], config["bind_port"]), handler)
     log.info(
-        "wol-relay listening on %s:%d, targets: %s, requesters: %s",
+        "wol-relay %s listening on %s:%d, targets: %s, requesters: %s",
+        __version__,
         config["bind_host"],
         config["bind_port"],
         ", ".join(config["targets"]),

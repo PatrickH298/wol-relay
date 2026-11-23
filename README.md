@@ -10,7 +10,7 @@ breaks once the target's ARP entry goes stale. Python standard library only.
 
 | Method | Path            | Auth                    | Result |
 |--------|-----------------|-------------------------|--------|
-| `GET`  | `/health`       | none                    | `200 {"status": "ok"}` |
+| `GET`  | `/health`       | none                    | `200 {"status": "ok", "version": "1.0.0"}` |
 | `POST` | `/wake/<target>`| `Authorization: Bearer <token>` | `200 {"status": "sent", "target": "<target>"}` |
 
 `POST /wake/<target>` returns `401` for a missing or wrong token, `404` for a
@@ -77,16 +77,56 @@ wrong (never a token value).
 Published to GitHub Container Registry for `linux/amd64` and `linux/arm64`:
 
 ```sh
-docker pull ghcr.io/patrickh298/wol-relay:latest
+docker pull ghcr.io/patrickh298/wol-relay:1
 ```
+
+| Tag | Tracks |
+|-----|--------|
+| `1.2.3` | exactly that release |
+| `1.2` | the newest `1.2.x` (bug fixes only) |
+| `1` | the newest `1.x.x` (fixes and new features, no breaking changes) |
+| `latest` | the newest release, including future major versions |
+
+Pinning to the major tag (`:1`) is the usual choice: you get fixes and
+features automatically but never a breaking change.
 
 Built by [`.github/workflows/image.yml`](.github/workflows/image.yml) on every
 change to `main`, weekly (to pick up base image security updates), and on
-demand. Pull requests are built and smoke-tested but never published.
+demand. Pull requests are built and smoke-tested but never published. The
+weekly rebuild republishes the current release's tags; older releases keep
+the base image they were last built with.
 
-The project is pre-release, so only `latest` is published for now. Once
-releases start, images will also be tagged `MAJOR.MINOR.PATCH`,
-`MAJOR.MINOR`, and `MAJOR`.
+Run `docker run --rm ghcr.io/patrickh298/wol-relay:1 --version` or
+`GET /health` to see which version you have.
+
+## Versioning
+
+Versions follow [semver](https://semver.org/): `MAJOR.MINOR.PATCH`.
+
+- **MAJOR**: breaking changes (e.g. a config format change that makes old
+  configs fail to load)
+- **MINOR**: new functionality that doesn't break existing configs or callers
+- **PATCH**: bug fixes, and base image bumps in the `Dockerfile`
+
+The version is set in one place, `__version__` in `wol_relay.py`. To release:
+
+1. In your PR, bump `__version__` to the next version (`1.0.0` →
+   `1.0.1`, `1.1.0`, or `2.0.0`).
+2. Merge it. The workflow publishes the new tags and creates a `vX.Y.Z`
+   git tag and GitHub release with generated notes.
+
+The `build` check enforces this on every PR:
+
+- Changing anything that goes into the image (`wol_relay.py`, `Dockerfile`,
+  `.dockerignore`) without bumping the version fails.
+- Changes to anything else (README, CI, examples) don't need a bump.
+- The version can only move to the next major, minor, or patch, never
+  backwards or skipping (e.g. `1.0.0` → `1.0.2` fails).
+- A build from `main` refuses to republish an existing version if the image
+  files differ from its release tag.
+
+Dependabot's base image PRs change the `Dockerfile`, so they need a
+version bump (usually PATCH) pushed to their branch before they can merge.
 
 ## Running with Docker Compose
 
