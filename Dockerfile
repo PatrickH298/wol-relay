@@ -1,4 +1,4 @@
-FROM python:3.13-alpine
+FROM python:3.15-alpine
 
 # Unbuffered so log lines reach `docker logs` immediately.
 ENV PYTHONUNBUFFERED=1
