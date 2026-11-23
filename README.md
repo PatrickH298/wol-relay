@@ -72,6 +72,22 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 The relay refuses to start on any config error and prints which field is
 wrong (never a token value).
 
+## Image
+
+Published to GitHub Container Registry for `linux/amd64` and `linux/arm64`:
+
+```sh
+docker pull ghcr.io/patrickh298/wol-relay:latest
+```
+
+Built by [`.github/workflows/image.yml`](.github/workflows/image.yml) on every
+change to `main`, weekly (to pick up base image security updates), and on
+demand. Pull requests are built and smoke-tested but never published.
+
+The project is pre-release, so only `latest` is published for now. Once
+releases start, images will also be tagged `MAJOR.MINOR.PATCH`,
+`MAJOR.MINOR`, and `MAJOR`.
+
 ## Running with Docker Compose
 
 ```sh
@@ -81,7 +97,7 @@ cp .env.example .env                      # set PUID/PGID and env tokens
 mkdir -p secrets
 python3 -c "import secrets; print(secrets.token_urlsafe(32))" > secrets/ha_token
 chmod 600 secrets/ha_token
-docker compose up -d --build
+docker compose up -d
 ```
 
 Notes:

@@ -1,0 +1,93 @@
+name: Image
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly rebuild to pick up base image (python:3.13-alpine) security
+    # updates. Mondays 07:23 UTC.
+    - cron: "23 7 * * 1"
+  workflow_dispatch:
+
+# Nothing by default; the job below asks for exactly what it needs.
+permissions: {}
+
+concurrency:
+  group: image-${{ github.event.pull_request.number || github.ref }}
+  # Cancel superseded PR builds, but never cancel a publish mid-push.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  IMAGE: ghcr.io/patrickh298/wol-relay
+  # Publish only from main (push, schedule, or manual run on main). PRs,
+  # including ones from forks, only build and test and never log in.
+  PUBLISH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+
+jobs:
+  # Job name is the required status check on main; rename both together.
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write # GHCR push; fork PRs get a read-only token regardless
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Build the native image into the local Docker engine so it can be
+      # started and tested before anything is published.
+      - name: Build test image (amd64)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          pull: true
+          load: true
+          push: false
+          tags: wol-relay:ci
+
+      - name: Smoke test
+        run: .github/ci/smoke-test.sh wol-relay:ci
+
+      # Prerelease: only "latest" is published. When switching to
+      # MAJOR.MINOR.PATCH releases, add type=semver rules here and a
+      # tag trigger above.
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.title=wol-relay
+            org.opencontainers.image.description=Wake-on-LAN relay: sends broadcast magic packets on request
+
+      - name: Log in to GHCR
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The image only COPYs a Python script onto the base image (no RUN
+      # steps), so the arm64 build needs no emulation.
+      - name: Build and publish (amd64 + arm64)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          pull: true
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

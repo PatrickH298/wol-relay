@@ -1,0 +1,24 @@
+{
+  "bind_host": "0.0.0.0",
+  "bind_port": 8098,
+  "targets": {
+    "ci-target": {
+      "mac": "02:00:00:00:00:01",
+      "broadcast_address": "127.0.0.1"
+    },
+    "ci-other": {
+      "mac": "02:00:00:00:00:02",
+      "broadcast_address": "127.0.0.1"
+    }
+  },
+  "requesters": {
+    "ci-all": {
+      "token_env": "CI_TOKEN_ALL",
+      "targets": "*"
+    },
+    "ci-limited": {
+      "token": "ci-limited-inline-token",
+      "targets": ["ci-target"]
+    }
+  }
+}
