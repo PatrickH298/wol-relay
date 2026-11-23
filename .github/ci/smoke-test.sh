@@ -3,10 +3,11 @@
 # read-only, no capabilities) and check the HTTP API end to end. Magic
 # packets go to 127.0.0.1 inside the container, so nothing hits a network.
 #
-# Usage: smoke-test.sh IMAGE
+# Usage: smoke-test.sh IMAGE VERSION
 set -euo pipefail
 
 image="$1"
+version="$2"
 name="wol-relay-smoke"
 config="$(cd "$(dirname "$0")" && pwd)/smoke-config.json"
 base="http://127.0.0.1:18098"
@@ -55,6 +56,22 @@ expect "wake, not in allowed list"   404 -X POST -H "Authorization: Bearer ci-li
 expect "wake, unknown target"        404 -X POST -H "Authorization: Bearer ci-env-token" "$base/wake/nope"
 expect "wake, wrong token"           401 -X POST -H "Authorization: Bearer wrong" "$base/wake/ci-target"
 expect "wake, no token"              401 -X POST "$base/wake/ci-target"
+
+reported=$(docker run --rm "$image" --version 2>&1 || true)
+if [ "$reported" = "wol-relay $version" ]; then
+  echo "ok   --version ($reported)"
+else
+  echo "FAIL --version: expected 'wol-relay $version', got '$reported'"
+  failures=$((failures + 1))
+fi
+
+health=$(curl --silent --max-time 5 "$base/health" || true)
+if [ "$health" = "{\"status\": \"ok\", \"version\": \"$version\"}" ]; then
+  echo "ok   /health reports $version"
+else
+  echo "FAIL /health: got '$health'"
+  failures=$((failures + 1))
+fi
 
 if docker exec "$name" python3 -I /app/wol_relay.py --healthcheck >/dev/null; then
   echo "ok   in-container --healthcheck"
