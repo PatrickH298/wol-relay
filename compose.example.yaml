@@ -1,0 +1,35 @@
+# Copy to compose.yaml, and copy .env.example to .env, then adjust both.
+services:
+  wol-relay:
+    build: .
+    container_name: wol-relay
+    restart: unless-stopped
+
+    # Required: broadcasts must leave via the host's real VLAN interfaces,
+    # and each target's source_address must be one of the host's own IPs.
+    # A bridge network would trap the broadcast on the Docker bridge.
+    network_mode: host
+
+    # Run as the user that owns config.json and ./secrets/*. Compose file
+    # secrets are bind mounts that keep host ownership and permissions,
+    # so a 0600 secret owned by uid 1000 is unreadable to any other uid.
+    user: "${PUID:-1000}:${PGID:-1000}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+    volumes:
+      - ./config.json:/etc/wol-relay/config.json:ro
+
+    # For requesters that use "token_file". Remove if you don't use any.
+    secrets:
+      - ha_token
+
+    # For requesters that use "token_env". Values come from ./.env so the
+    # tokens stay out of this file. Remove if you don't use any.
+    environment:
+      WOL_TOKEN_PHONE: ${WOL_TOKEN_PHONE:?set WOL_TOKEN_PHONE in .env}
+
+secrets:
+  ha_token:
+    file: ./secrets/ha_token

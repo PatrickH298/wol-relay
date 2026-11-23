@@ -1,0 +1,8 @@
+# Local deployment files — may contain tokens
+config.json
+compose.yaml
+.env
+secrets/
+
+__pycache__/
+*.pyc
