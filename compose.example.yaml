@@ -1,7 +1,9 @@
 # Copy to compose.yaml, and copy .env.example to .env, then adjust both.
 services:
   wol-relay:
-    build: .
+    image: ghcr.io/patrickh298/wol-relay:latest
+    # To build from this checkout instead, replace `image:` with:
+    # build: .
     container_name: wol-relay
     restart: unless-stopped
 

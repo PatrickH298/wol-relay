@@ -1,0 +1,4 @@
+# Every change needs approval from the repository owner. The main branch
+# ruleset requires a code-owner review, so this is what limits who can
+# approve (and therefore merge) pull requests.
+* @PatrickH298
